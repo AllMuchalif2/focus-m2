@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "310869531549",
+    "project_id": "db-arnama-0025",
+    "storage_bucket": "db-arnama-0025.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:310869531549:android:a956bfa4966a7ccecf2d74",
+        "android_client_info": {
+          "package_name": "com.example.database_firebase"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD77yHFoYsV30OZkQhgvDsqfNimnbPYUYY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:310869531549:android:9aafe9bcc6f9c1a3cf2d74",
+        "android_client_info": {
+          "package_name": "com.example.focus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD77yHFoYsV30OZkQhgvDsqfNimnbPYUYY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,16 +1,27 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'core/theme.dart';
 
-void main() {
-  runApp(const MainApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(const FocusApp());
 }
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+class FocusApp extends StatelessWidget {
+  const FocusApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: Scaffold(body: Center(child: Text('Hello World!'))),
+    return MaterialApp(
+      title: 'Pomodoro Focus',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.darkTheme,
+      home: const Scaffold(
+        body: Center(
+          child: Text('Pomodoro Focus Ready'),
+        ),
+      ),
     );
   }
 }
