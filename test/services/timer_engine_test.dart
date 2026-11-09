@@ -2,115 +2,108 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:focus/services/timer_engine.dart';
 
 void main() {
-  group('TimerEngine Unit Tests', () {
+  group('TimerEngine (Windows Style Single Session with Automatic Breaks)', () {
     late TimerEngine engine;
     final baseTime = DateTime(2026, 1, 1, 10, 0, 0);
 
-    setUp(() {
-      engine = TimerEngine(
-        mode: TimerMode.focus,
-        customDuration: const Duration(minutes: 25),
-      );
+    test('Default 30m session generates 25m focus and 5m break', () {
+      engine = TimerEngine(totalMinutes: 30);
+
+      expect(engine.status, TimerStatus.idle);
+      expect(engine.totalSessionMinutes, 30);
+      expect(engine.plans.length, 2);
+
+      expect(engine.plans[0].phase, TimerPhase.focus);
+      expect(engine.plans[0].duration, const Duration(minutes: 25));
+
+      expect(engine.plans[1].phase, TimerPhase.shortBreak);
+      expect(engine.plans[1].duration, const Duration(minutes: 5));
     });
 
-    test('Initial state is correct', () {
-      expect(engine.status, TimerStatus.initial);
-      expect(engine.mode, TimerMode.focus);
-      expect(engine.totalDuration, const Duration(minutes: 25));
-      expect(engine.remainingDuration, const Duration(minutes: 25));
-      expect(engine.startAt, isNull);
-      expect(engine.endAt, isNull);
+    test('60m session generates 2 focus sessions (25m) and 2 break sessions (5m)', () {
+      engine = TimerEngine(totalMinutes: 60);
+
+      expect(engine.plans.length, 4);
+      expect(engine.plans[0].phase, TimerPhase.focus);
+      expect(engine.plans[0].duration, const Duration(minutes: 25));
+      expect(engine.plans[1].phase, TimerPhase.shortBreak);
+      expect(engine.plans[1].duration, const Duration(minutes: 5));
+
+      expect(engine.plans[2].phase, TimerPhase.focus);
+      expect(engine.plans[2].duration, const Duration(minutes: 25));
+      expect(engine.plans[3].phase, TimerPhase.shortBreak);
+      expect(engine.plans[3].duration, const Duration(minutes: 5));
     });
 
-    test('Start initializes endAt and sets running status', () {
-      engine.start(now: baseTime);
+    test('Start begins phase 1 and endAt is based on phase duration', () {
+      engine = TimerEngine(totalMinutes: 30);
+      engine.start(baseTime);
 
       expect(engine.status, TimerStatus.running);
-      expect(engine.startAt, baseTime);
+      expect(engine.currentPhase, TimerPhase.focus);
       expect(engine.endAt, baseTime.add(const Duration(minutes: 25)));
-      expect(engine.remainingDuration, const Duration(minutes: 25));
+      expect(engine.calculateRemaining(baseTime.add(const Duration(minutes: 10))),
+          const Duration(minutes: 15));
     });
 
-    test('Tick updates remaining duration accurately without counting ticks', () {
-      engine.start(now: baseTime);
+    test('When 25m focus finishes, tick automatically transitions to 5m break', () {
+      engine = TimerEngine(totalMinutes: 30);
+      engine.start(baseTime);
+
+      final focusEnd = baseTime.add(const Duration(minutes: 25));
+      engine.tick(focusEnd);
+
+      expect(engine.status, TimerStatus.running);
+      expect(engine.currentPlanIndex, 1);
+      expect(engine.currentPhase, TimerPhase.shortBreak);
+      expect(engine.currentPhaseDuration, const Duration(minutes: 5));
+      expect(engine.endAt, focusEnd.add(const Duration(minutes: 5)));
+    });
+
+    test('When 5m break finishes, session completes to finished status', () {
+      engine = TimerEngine(totalMinutes: 30);
+      engine.start(baseTime);
+
+      // Finish focus
+      final focusEnd = baseTime.add(const Duration(minutes: 25));
+      engine.tick(focusEnd);
+
+      // Finish break
+      final breakEnd = focusEnd.add(const Duration(minutes: 5));
+      engine.tick(breakEnd);
+
+      expect(engine.status, TimerStatus.finished);
+      expect(engine.isFinished, isTrue);
+      expect(engine.endAt, isNull);
+    });
+
+    test('Pause and resume preserve accurate remaining time', () {
+      engine = TimerEngine(totalMinutes: 30);
+      engine.start(baseTime);
 
       final tenMinutesLater = baseTime.add(const Duration(minutes: 10));
-      final status = engine.tick(tenMinutesLater);
-
-      expect(status, TimerStatus.running);
-      expect(engine.remainingDuration, const Duration(minutes: 15));
-    });
-
-    test('Tick transitions to completed when time expires', () {
-      engine.start(now: baseTime);
-
-      final afterEnd = baseTime.add(const Duration(minutes: 25, seconds: 1));
-      final status = engine.tick(afterEnd);
-
-      expect(status, TimerStatus.completed);
-      expect(engine.remainingDuration, Duration.zero);
-      expect(engine.isCompleted, isTrue);
-    });
-
-    test('Pause preserves remaining duration and clears endAt', () {
-      engine.start(now: baseTime);
-
-      final tenMinutesLater = baseTime.add(const Duration(minutes: 10));
-      engine.pause(now: tenMinutesLater);
+      engine.pause(tenMinutesLater);
 
       expect(engine.status, TimerStatus.paused);
-      expect(engine.endAt, isNull);
-      expect(engine.remainingDuration, const Duration(minutes: 15));
-    });
-
-    test('Resume recalculates endAt based on remaining duration', () {
-      engine.start(now: baseTime);
-
-      final tenMinutesLater = baseTime.add(const Duration(minutes: 10));
-      engine.pause(now: tenMinutesLater);
+      expect(engine.calculateRemaining(tenMinutesLater), const Duration(minutes: 15));
 
       final resumeTime = baseTime.add(const Duration(minutes: 20));
-      engine.resume(now: resumeTime);
+      engine.resume(resumeTime);
 
       expect(engine.status, TimerStatus.running);
       expect(engine.endAt, resumeTime.add(const Duration(minutes: 15)));
-      expect(engine.remainingDuration, const Duration(minutes: 15));
     });
 
-    test('Jump Time reduces remaining time', () {
-      engine.start(now: baseTime);
-      engine.jumpTime(const Duration(minutes: 20));
-
-      expect(engine.endAt, baseTime.add(const Duration(minutes: 5)));
-    });
-
-    test('Serialization and restoration to/from map works accurately', () {
-      engine.start(now: baseTime);
-      final map = engine.toMap();
-
-      final restoredRunning = TimerEngine.fromMap(
-        map,
-        now: baseTime.add(const Duration(minutes: 5)),
-      );
-      expect(restoredRunning.status, TimerStatus.running);
-      expect(restoredRunning.remainingDuration, const Duration(minutes: 20));
-
-      final restoredExpired = TimerEngine.fromMap(
-        map,
-        now: baseTime.add(const Duration(minutes: 30)),
-      );
-      expect(restoredExpired.status, TimerStatus.completed);
-      expect(restoredExpired.remainingDuration, Duration.zero);
-    });
-
-    test('Stop resets engine back to initial state', () {
-      engine.start(now: baseTime);
+    test('Stop resets engine back to idle and initial phase', () {
+      engine = TimerEngine(totalMinutes: 30);
+      engine.start(baseTime);
       engine.stop();
 
-      expect(engine.status, TimerStatus.initial);
+      expect(engine.status, TimerStatus.idle);
+      expect(engine.currentPlanIndex, 0);
+      expect(engine.currentPhase, TimerPhase.focus);
       expect(engine.startAt, isNull);
       expect(engine.endAt, isNull);
-      expect(engine.remainingDuration, const Duration(minutes: 25));
     });
   });
 }

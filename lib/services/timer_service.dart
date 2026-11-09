@@ -17,11 +17,16 @@ class TimerService extends ChangeNotifier {
   TimerService({
     TimerEngine? engine,
     NotificationService? notificationService,
-  })  : _engine = engine ?? TimerEngine(),
+  })  : _engine = engine ?? TimerEngine(totalMinutes: 30),
         _notificationService = notificationService ?? NotificationService();
 
   TimerStatus get status => _engine.status;
+  TimerPhase get phase => _engine.phase;
   TimerMode get mode => _engine.mode;
+  int get totalSessionMinutes => _engine.totalSessionMinutes;
+  int get currentPlanIndex => _engine.currentPlanIndex;
+  int get totalPlansCount => _engine.totalPlansCount;
+
   Duration get totalDuration => _engine.totalDuration;
   Duration get remainingDuration => _engine.remainingDuration;
   DateTime? get startAt => _engine.startAt;
@@ -29,15 +34,17 @@ class TimerService extends ChangeNotifier {
 
   bool get isRunning => _engine.isRunning;
   bool get isPaused => _engine.isPaused;
-  bool get isCompleted => _engine.isCompleted;
-  bool get isInitial => _engine.isInitial;
+  bool get isCompleted => _engine.isFinished;
+  bool get isFinished => _engine.isFinished;
+  bool get isInitial => _engine.isIdle;
+  bool get isIdle => _engine.isIdle;
   bool get isRestored => _isRestored;
 
   double get progress {
-    if (_engine.totalDuration.inMilliseconds == 0) return 0.0;
+    if (_engine.currentPhaseDuration.inMilliseconds == 0) return 0.0;
     final value = 1.0 -
         (_engine.remainingDuration.inMilliseconds /
-            _engine.totalDuration.inMilliseconds);
+            _engine.currentPhaseDuration.inMilliseconds);
     return value.clamp(0.0, 1.0);
   }
 
@@ -60,18 +67,24 @@ class TimerService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setMode(TimerMode mode, {Duration? customDuration}) async {
+  Future<void> setTotalMinutes(int minutes) async {
     _stopTicker();
     await _updateWakelock(false);
     await _notificationService.cancelTimerNotification();
 
-    _engine.setMode(mode, customDuration: customDuration);
+    _engine.setTotalMinutes(minutes);
     await _saveState();
     notifyListeners();
   }
 
-  Future<void> start({TimerMode? mode, Duration? duration}) async {
-    _engine.start(now: DateTime.now(), mode: mode, duration: duration);
+  Future<void> setMode(TimerMode mode, {Duration? customDuration}) async {
+    if (customDuration != null) {
+      await setTotalMinutes(customDuration.inMinutes);
+    }
+  }
+
+  Future<void> start() async {
+    _engine.start(DateTime.now());
     _startTicker();
     await _updateWakelock(true);
 
@@ -79,7 +92,7 @@ class TimerService extends ChangeNotifier {
       await _notificationService.scheduleTimerNotification(
         endAt: _engine.endAt!,
         title: 'Sesi Selesai',
-        body: 'Sesi ${_engine.mode.displayName} telah berakhir.',
+        body: 'Fase ${_engine.phase.displayName} telah berakhir.',
       );
     }
 
@@ -88,7 +101,7 @@ class TimerService extends ChangeNotifier {
   }
 
   Future<void> pause() async {
-    _engine.pause(now: DateTime.now());
+    _engine.pause(DateTime.now());
     _stopTicker();
     await _updateWakelock(false);
     await _notificationService.cancelTimerNotification();
@@ -97,7 +110,7 @@ class TimerService extends ChangeNotifier {
   }
 
   Future<void> resume() async {
-    _engine.resume(now: DateTime.now());
+    _engine.resume(DateTime.now());
     _startTicker();
     await _updateWakelock(true);
 
@@ -105,7 +118,7 @@ class TimerService extends ChangeNotifier {
       await _notificationService.scheduleTimerNotification(
         endAt: _engine.endAt!,
         title: 'Sesi Selesai',
-        body: 'Sesi ${_engine.mode.displayName} telah berakhir.',
+        body: 'Fase ${_engine.phase.displayName} telah berakhir.',
       );
     }
 
@@ -125,11 +138,14 @@ class TimerService extends ChangeNotifier {
   void _startTicker() {
     _stopTicker();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      final oldPlanIndex = _engine.currentPlanIndex;
       final oldStatus = _engine.status;
       final newStatus = _engine.tick(DateTime.now());
 
-      if (newStatus == TimerStatus.completed && oldStatus != TimerStatus.completed) {
+      if (newStatus == TimerStatus.finished && oldStatus != TimerStatus.finished) {
         _onCompleted();
+      } else if (_engine.currentPlanIndex != oldPlanIndex) {
+        _onPhaseTransitioned();
       } else {
         notifyListeners();
       }
@@ -139,6 +155,18 @@ class TimerService extends ChangeNotifier {
   void _stopTicker() {
     _ticker?.cancel();
     _ticker = null;
+  }
+
+  Future<void> _onPhaseTransitioned() async {
+    if (_engine.endAt != null) {
+      await _notificationService.scheduleTimerNotification(
+        endAt: _engine.endAt!,
+        title: 'Perubahan Fase',
+        body: 'Memulai ${_engine.phase.displayName} (${_engine.currentPhaseDuration.inMinutes} menit).',
+      );
+    }
+    await _saveState();
+    notifyListeners();
   }
 
   Future<void> _onCompleted() async {
@@ -181,37 +209,21 @@ class TimerService extends ChangeNotifier {
       if (jsonStr == null) return;
 
       final map = jsonDecode(jsonStr) as Map<String, dynamic>;
-      final restoredEngine = TimerEngine.fromMap(map, now: DateTime.now());
+      final restored = TimerEngine.fromMap(map, now: DateTime.now());
 
-      _engine.setMode(restoredEngine.mode, customDuration: restoredEngine.totalDuration);
-      if (restoredEngine.status == TimerStatus.running) {
-        _engine.start(
-          now: restoredEngine.startAt,
-          mode: restoredEngine.mode,
-          duration: restoredEngine.totalDuration,
-        );
+      _engine.setTotalMinutes(restored.totalSessionMinutes);
+      if (restored.status == TimerStatus.running) {
+        _engine.start(restored.startAt);
         _engine.tick(DateTime.now());
         if (_engine.isRunning) {
           _startTicker();
           await _updateWakelock(true);
-        } else if (_engine.isCompleted) {
-          await _updateWakelock(false);
-          await _notificationService.cancelTimerNotification();
         }
-      } else if (restoredEngine.status == TimerStatus.paused) {
-        _engine.start(
-          now: restoredEngine.startAt,
-          mode: restoredEngine.mode,
-          duration: restoredEngine.totalDuration,
-        );
+      } else if (restored.status == TimerStatus.paused) {
+        _engine.start(restored.startAt);
         _engine.pause();
-      } else if (restoredEngine.status == TimerStatus.completed) {
-        _engine.start(
-          now: restoredEngine.startAt,
-          mode: restoredEngine.mode,
-          duration: restoredEngine.totalDuration,
-        );
-        _engine.tick(restoredEngine.endAt ?? DateTime.now());
+      } else if (restored.status == TimerStatus.finished) {
+        _engine.finish();
       }
     } catch (_) {}
   }

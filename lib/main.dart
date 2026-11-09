@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/theme.dart';
+import 'data/repositories/session_repository.dart';
 import 'features/auth/auth_gate.dart';
 import 'services/auth_service.dart';
 import 'services/timer_service.dart';
@@ -21,6 +22,9 @@ class FocusApp extends StatelessWidget {
       providers: [
         Provider<AuthService>(
           create: (_) => AuthService(),
+        ),
+        Provider<SessionRepository>(
+          create: (_) => SessionRepository(),
         ),
         ChangeNotifierProvider<TimerService>(
           create: (_) => TimerService()..initialize(),
