@@ -1,6 +1,9 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'core/theme.dart';
+import 'features/auth/auth_gate.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,14 +16,17 @@ class FocusApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Pomodoro Focus',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
-      home: const Scaffold(
-        body: Center(
-          child: Text('Pomodoro Focus Ready'),
+    return MultiProvider(
+      providers: [
+        Provider<AuthService>(
+          create: (_) => AuthService(),
         ),
+      ],
+      child: MaterialApp(
+        title: 'Pomodoro Focus',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.darkTheme,
+        home: const AuthGate(),
       ),
     );
   }
