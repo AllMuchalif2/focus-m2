@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/media_service.dart';
 import '../../services/timer_engine.dart';
 import '../../services/timer_service.dart';
 import '../sessions/sessions_history_screen.dart';
 import '../stats/stats_screen.dart';
 import 'widgets/finish_sheet.dart';
+import 'widgets/media_selector_sheet.dart';
 import 'widgets/timer_circle.dart';
+import 'widgets/video_timer_view.dart';
 
 class TimerScreen extends StatefulWidget {
   const TimerScreen({super.key});
@@ -53,6 +56,8 @@ class _TimerScreenState extends State<TimerScreen> {
     if (!mounted || _isFinishSheetOpen) return;
     setState(() => _isFinishSheetOpen = true);
 
+    context.read<MediaService>().playAlarm();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -65,6 +70,7 @@ class _TimerScreenState extends State<TimerScreen> {
       ),
     ).whenComplete(() {
       if (mounted) {
+        context.read<MediaService>().stopAlarm();
         setState(() => _isFinishSheetOpen = false);
       }
     });
@@ -85,13 +91,32 @@ class _TimerScreenState extends State<TimerScreen> {
   @override
   Widget build(BuildContext context) {
     final timerService = context.watch<TimerService>();
+    final mediaService = context.watch<MediaService>();
     final theme = Theme.of(context);
     final isIdle = timerService.isIdle;
+    final hasVideo = mediaService.currentVideoUrl != null;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pomodoro Focus'),
         actions: [
+          IconButton(
+            icon: Icon(
+              mediaService.currentAmbienceUrl != null || mediaService.currentVideoUrl != null
+                  ? Icons.music_note
+                  : Icons.music_note_outlined,
+            ),
+            tooltip: 'Media & Ambience',
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                builder: (_) => const MediaSelectorSheet(),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.insights_outlined),
             tooltip: 'Statistik',
@@ -229,14 +254,27 @@ class _TimerScreenState extends State<TimerScreen> {
                             ),
                           ),
                         ],
-                        const Spacer(),
-                        TimerCircle(
-                          formattedTime: timerService.formattedRemaining,
-                          progress: timerService.progress,
-                          mode: timerService.phase,
-                          status: timerService.status,
-                        ),
-                        const Spacer(),
+                        if (hasVideo) ...[
+                          const SizedBox(height: 16),
+                          VideoTimerView(
+                            controller: mediaService.videoController,
+                            isInitialized: mediaService.isVideoInitialized,
+                            formattedTime: timerService.formattedRemaining,
+                            progress: timerService.progress,
+                            phase: timerService.phase,
+                            status: timerService.status,
+                          ),
+                          const Spacer(),
+                        ] else ...[
+                          const Spacer(),
+                          TimerCircle(
+                            formattedTime: timerService.formattedRemaining,
+                            progress: timerService.progress,
+                            mode: timerService.phase,
+                            status: timerService.status,
+                          ),
+                          const Spacer(),
+                        ],
                         _buildControlButtons(context, timerService, theme),
                         const SizedBox(height: 16),
                       ],

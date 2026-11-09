@@ -5,6 +5,7 @@ import 'core/theme.dart';
 import 'data/repositories/session_repository.dart';
 import 'features/auth/auth_gate.dart';
 import 'services/auth_service.dart';
+import 'services/media_service.dart';
 import 'services/timer_service.dart';
 
 void main() async {
@@ -28,6 +29,9 @@ class FocusApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<TimerService>(
           create: (_) => TimerService()..initialize(),
+        ),
+        ChangeNotifierProvider<MediaService>(
+          create: (_) => MediaService(),
         ),
       ],
       child: MaterialApp(
