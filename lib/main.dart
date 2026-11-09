@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'core/theme.dart';
 import 'features/auth/auth_gate.dart';
 import 'services/auth_service.dart';
+import 'services/timer_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +21,9 @@ class FocusApp extends StatelessWidget {
       providers: [
         Provider<AuthService>(
           create: (_) => AuthService(),
+        ),
+        ChangeNotifierProvider<TimerService>(
+          create: (_) => TimerService()..initialize(),
         ),
       ],
       child: MaterialApp(
