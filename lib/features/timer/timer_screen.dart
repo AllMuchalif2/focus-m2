@@ -4,6 +4,7 @@ import '../../services/auth_service.dart';
 import '../../services/timer_engine.dart';
 import '../../services/timer_service.dart';
 import '../sessions/sessions_history_screen.dart';
+import '../stats/stats_screen.dart';
 import 'widgets/finish_sheet.dart';
 import 'widgets/timer_circle.dart';
 
@@ -91,6 +92,18 @@ class _TimerScreenState extends State<TimerScreen> {
       appBar: AppBar(
         title: const Text('Pomodoro Focus'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.insights_outlined),
+            tooltip: 'Statistik',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const StatsScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.history),
             tooltip: 'Riwayat Sesi',
