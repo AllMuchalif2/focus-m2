@@ -27,11 +27,14 @@ class FocusApp extends StatelessWidget {
         Provider<SessionRepository>(
           create: (_) => SessionRepository(),
         ),
-        ChangeNotifierProvider<TimerService>(
-          create: (_) => TimerService()..initialize(),
-        ),
         ChangeNotifierProvider<MediaService>(
           create: (_) => MediaService(),
+        ),
+        ChangeNotifierProxyProvider<MediaService, TimerService>(
+          create: (ctx) => TimerService(
+            mediaService: ctx.read<MediaService>(),
+          )..initialize(),
+          update: (_, media, timer) => timer!..attachMediaService(media),
         ),
       ],
       child: MaterialApp(

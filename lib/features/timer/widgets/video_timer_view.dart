@@ -103,7 +103,7 @@ class VideoTimerView extends StatelessWidget {
                 ? AspectRatio(
                     aspectRatio: controller!.value.aspectRatio > 0
                         ? controller!.value.aspectRatio
-                        : 16 / 9,
+                        : 9 / 16,
                     child: VideoPlayer(controller!),
                   )
                 : Container(

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'media_service.dart';
 import 'notification_service.dart';
 import 'timer_engine.dart';
 
@@ -11,14 +12,21 @@ class TimerService extends ChangeNotifier {
 
   final TimerEngine _engine;
   final NotificationService _notificationService;
+  MediaService? _mediaService;
   Timer? _ticker;
   bool _isRestored = false;
 
   TimerService({
     TimerEngine? engine,
     NotificationService? notificationService,
+    MediaService? mediaService,
   })  : _engine = engine ?? TimerEngine(totalMinutes: 30),
-        _notificationService = notificationService ?? NotificationService();
+        _notificationService = notificationService ?? NotificationService(),
+        _mediaService = mediaService;
+
+  void attachMediaService(MediaService mediaService) {
+    _mediaService = mediaService;
+  }
 
   TimerStatus get status => _engine.status;
   TimerPhase get phase => _engine.phase;
@@ -158,11 +166,25 @@ class TimerService extends ChangeNotifier {
   }
 
   Future<void> _onPhaseTransitioned() async {
+    final isNowBreak = _engine.phase.isBreak;
+    final alertTitle = isNowBreak ? 'Sesi Fokus Selesai!' : 'Waktu Istirahat Selesai!';
+    final alertBody = isNowBreak
+        ? 'Waktunya istirahat (${_engine.currentPhaseDuration.inMinutes} menit).'
+        : 'Mari mulai fokus kembali (${_engine.currentPhaseDuration.inMinutes} menit).';
+
+    await _notificationService.showImmediateNotification(
+      title: alertTitle,
+      body: alertBody,
+      id: 1002,
+    );
+
+    _mediaService?.playAlarm();
+
     if (_engine.endAt != null) {
       await _notificationService.scheduleTimerNotification(
         endAt: _engine.endAt!,
-        title: 'Perubahan Fase',
-        body: 'Memulai ${_engine.phase.displayName} (${_engine.currentPhaseDuration.inMinutes} menit).',
+        title: isNowBreak ? 'Istirahat Selesai' : 'Sesi Selesai',
+        body: 'Fase ${_engine.phase.displayName} telah berakhir.',
       );
     }
     await _saveState();
@@ -172,7 +194,13 @@ class TimerService extends ChangeNotifier {
   Future<void> _onCompleted() async {
     _stopTicker();
     await _updateWakelock(false);
-    await _notificationService.cancelTimerNotification();
+
+    await _notificationService.showImmediateNotification(
+      title: 'Sesi Selesai!',
+      body: 'Seluruh sesi fokus telah selesai. Bagus sekali!',
+      id: 1003,
+    );
+
     await _saveState();
     notifyListeners();
   }

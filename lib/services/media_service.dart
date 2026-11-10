@@ -34,12 +34,18 @@ class MediaService extends ChangeNotifier {
       if (_currentAmbienceUrl == url && _ambiencePlayer.playing) return;
 
       _currentAmbienceUrl = url;
+      notifyListeners();
+
       await _ambiencePlayer.setUrl(url);
       await _ambiencePlayer.setLoopMode(LoopMode.one);
       await _ambiencePlayer.setVolume(_ambienceVolume);
-      await _ambiencePlayer.play();
-      notifyListeners();
-    } catch (_) {}
+      _ambiencePlayer.play();
+    } catch (_) {
+      if (_currentAmbienceUrl == url) {
+        _currentAmbienceUrl = null;
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> pauseAmbience() async {
@@ -52,8 +58,8 @@ class MediaService extends ChangeNotifier {
   Future<void> stopAmbience() async {
     try {
       _currentAmbienceUrl = null;
-      await _ambiencePlayer.stop();
       notifyListeners();
+      await _ambiencePlayer.stop();
     } catch (_) {}
   }
 
@@ -105,7 +111,10 @@ class MediaService extends ChangeNotifier {
 
     if (url != null && url.isNotEmpty) {
       try {
-        final controller = VideoPlayerController.networkUrl(Uri.parse(url));
+        final controller = VideoPlayerController.networkUrl(
+          Uri.parse(url),
+          videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+        );
         _videoController = controller;
         await controller.initialize();
         await controller.setVolume(0.0);
@@ -130,6 +139,7 @@ class MediaService extends ChangeNotifier {
 
   Future<void> playVideo() async {
     if (_videoController != null && _isVideoInitialized) {
+      await _videoController!.setVolume(0.0);
       await _videoController!.play();
       notifyListeners();
     }

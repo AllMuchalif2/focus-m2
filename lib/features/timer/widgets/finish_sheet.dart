@@ -30,7 +30,7 @@ class _FinishSheetState extends State<FinishSheet> {
     super.dispose();
   }
 
-  Future<void> _saveSession({bool startBreakAfter = false}) async {
+  Future<void> _saveSession() async {
     setState(() => _isSaving = true);
 
     try {
@@ -51,13 +51,7 @@ class _FinishSheetState extends State<FinishSheet> {
 
       if (!mounted) return;
       final timerService = context.read<TimerService>();
-
-      if (startBreakAfter && widget.completedMode == TimerMode.focus) {
-        await timerService.setMode(TimerMode.shortBreak);
-        await timerService.start();
-      } else {
-        await timerService.stop();
-      }
+      await timerService.stop();
 
       if (mounted) {
         Navigator.pop(context);
@@ -83,7 +77,6 @@ class _FinishSheetState extends State<FinishSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isFocus = widget.completedMode == TimerMode.focus;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -134,22 +127,15 @@ class _FinishSheetState extends State<FinishSheet> {
             ),
           ),
           const SizedBox(height: 16),
-          if (isFocus)
-            FilledButton.icon(
-              onPressed: _isSaving ? null : () => _saveSession(startBreakAfter: true),
-              icon: const Icon(Icons.free_breakfast_outlined),
-              label: _isSaving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Simpan & Mulai Istirahat'),
-            ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: _isSaving ? null : () => _saveSession(startBreakAfter: false),
-            child: const Text('Simpan & Selesai'),
+          FilledButton(
+            onPressed: _isSaving ? null : _saveSession,
+            child: _isSaving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Simpan & Selesai'),
           ),
         ],
       ),
