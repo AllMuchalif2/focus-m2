@@ -91,19 +91,41 @@ class TimerService extends ChangeNotifier {
     }
   }
 
+  Future<void> _scheduleAllPhaseNotifications() async {
+    await _notificationService.cancelTimerNotification();
+    if (_engine.startAt == null) return;
+
+    DateTime phaseStart = _engine.startAt!;
+    for (int i = 0; i < _engine.plans.length; i++) {
+      final plan = _engine.plans[i];
+      final phaseEnd = phaseStart.add(plan.duration);
+      final isLast = i == _engine.plans.length - 1;
+
+      final title = isLast
+          ? 'Sesi Selesai!'
+          : (plan.phase.isFocus ? 'Sesi Fokus Selesai!' : 'Waktu Istirahat Selesai!');
+      final body = isLast
+          ? 'Seluruh sesi fokus telah selesai. Bagus sekali!'
+          : (plan.phase.isFocus
+              ? 'Waktunya istirahat.'
+              : 'Mari mulai fokus kembali.');
+
+      await _notificationService.scheduleTimerNotification(
+        endAt: phaseEnd,
+        title: title,
+        body: body,
+        id: 1000 + i,
+      );
+
+      phaseStart = phaseEnd;
+    }
+  }
+
   Future<void> start() async {
     _engine.start(DateTime.now());
     _startTicker();
     await _updateWakelock(true);
-
-    if (_engine.endAt != null) {
-      await _notificationService.scheduleTimerNotification(
-        endAt: _engine.endAt!,
-        title: 'Sesi Selesai',
-        body: 'Fase ${_engine.phase.displayName} telah berakhir.',
-      );
-    }
-
+    await _scheduleAllPhaseNotifications();
     await _saveState();
     notifyListeners();
   }
@@ -112,7 +134,7 @@ class TimerService extends ChangeNotifier {
     _engine.pause(DateTime.now());
     _stopTicker();
     await _updateWakelock(false);
-    await _notificationService.cancelTimerNotification();
+    await _notificationService.cancelAllNotifications();
     await _saveState();
     notifyListeners();
   }
@@ -121,15 +143,7 @@ class TimerService extends ChangeNotifier {
     _engine.resume(DateTime.now());
     _startTicker();
     await _updateWakelock(true);
-
-    if (_engine.endAt != null) {
-      await _notificationService.scheduleTimerNotification(
-        endAt: _engine.endAt!,
-        title: 'Sesi Selesai',
-        body: 'Fase ${_engine.phase.displayName} telah berakhir.',
-      );
-    }
-
+    await _scheduleAllPhaseNotifications();
     await _saveState();
     notifyListeners();
   }
@@ -137,7 +151,7 @@ class TimerService extends ChangeNotifier {
   Future<void> stop() async {
     _stopTicker();
     await _updateWakelock(false);
-    await _notificationService.cancelTimerNotification();
+    await _notificationService.cancelAllNotifications();
     _engine.stop();
     await _clearState();
     notifyListeners();
@@ -166,27 +180,7 @@ class TimerService extends ChangeNotifier {
   }
 
   Future<void> _onPhaseTransitioned() async {
-    final isNowBreak = _engine.phase.isBreak;
-    final alertTitle = isNowBreak ? 'Sesi Fokus Selesai!' : 'Waktu Istirahat Selesai!';
-    final alertBody = isNowBreak
-        ? 'Waktunya istirahat (${_engine.currentPhaseDuration.inMinutes} menit).'
-        : 'Mari mulai fokus kembali (${_engine.currentPhaseDuration.inMinutes} menit).';
-
-    await _notificationService.showImmediateNotification(
-      title: alertTitle,
-      body: alertBody,
-      id: 1002,
-    );
-
     _mediaService?.playAlarm();
-
-    if (_engine.endAt != null) {
-      await _notificationService.scheduleTimerNotification(
-        endAt: _engine.endAt!,
-        title: isNowBreak ? 'Istirahat Selesai' : 'Sesi Selesai',
-        body: 'Fase ${_engine.phase.displayName} telah berakhir.',
-      );
-    }
     await _saveState();
     notifyListeners();
   }
@@ -194,13 +188,7 @@ class TimerService extends ChangeNotifier {
   Future<void> _onCompleted() async {
     _stopTicker();
     await _updateWakelock(false);
-
-    await _notificationService.showImmediateNotification(
-      title: 'Sesi Selesai!',
-      body: 'Seluruh sesi fokus telah selesai. Bagus sekali!',
-      id: 1003,
-    );
-
+    _mediaService?.playAlarm();
     await _saveState();
     notifyListeners();
   }

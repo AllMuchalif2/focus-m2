@@ -1,521 +1,228 @@
 ================================================================================
-ALUR LENGKAP APLIKASI POMODORO FOCUS (DARI BARU INSTALL SAMPAI LOGOUT)
+ARSITEKTUR & ALUR LENGKAP APLIKASI POMODORO FOCUS
 ================================================================================
 
 --------------------------------------------------------------------------------
-TAHAP 1: INISIALISASI SAAT PERTAMA KALI INSTALL & DIBUKA
-File: lib/main.dart
+TAHAP 1: INISIALISASI & ROOT SETUP (APP STARTUP)
 --------------------------------------------------------------------------------
-Saat aplikasi pertama kali dibuka, Flutter menyiapkan Firebase dan Provider:
+Komponen yang Terlibat:
+- Root Entrypoint  : lib/main.dart (FocusApp)
+- Core Theme       : lib/core/theme.dart (AppTheme)
+- Core Constants   : lib/core/constants.dart (AppConstants: URL audio/video jsDelivr)
+- State Management : package:provider (MultiProvider)
+- Services         : 
+  * AuthService           : lib/services/auth_service.dart
+  * SessionRepository     : lib/data/repositories/session_repository.dart
+  * MediaService          : lib/services/media_service.dart
+  * TimerService          : lib/services/timer_service.dart
+  * NotificationService   : lib/services/notification_service.dart
+  * TimerEngine           : lib/services/timer_engine.dart
+- Local Storage    : SharedPreferences (key: 'active_timer_state')
+- Native Config    :
+  * Android Manifest : android/app/src/main/AndroidManifest.xml (Permissions & Receivers)
+  * ProGuard Rules   : android/app/proguard-rules.pro (Keep TypeToken & Firestore)
+  * Build Config     : android/app/build.gradle.kts (coreLibraryDesugaring, ProGuard)
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  runApp(const FocusApp());
-}
-
-class FocusApp extends StatelessWidget {
-  const FocusApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        Provider<AuthService>(
-          create: (_) => AuthService(),
-        ),
-        Provider<SessionRepository>(
-          create: (_) => SessionRepository(),
-        ),
-        ChangeNotifierProvider<TimerService>(
-          create: (_) => TimerService()..initialize(),
-        ),
-        ChangeNotifierProvider<MediaService>(
-          create: (_) => MediaService(),
-        ),
-      ],
-      child: MaterialApp(
-        title: 'Pomodoro Focus',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.darkTheme,
-        home: const AuthGate(),
-      ),
-    );
-  }
-}
-
-Di TimerService.initialize(), sistem mengecek apakah ada sesi yang tersimpan di SharedPreferences (jika app sempat ditutup) dan menginisialisasi notifikasi:
-File: lib/services/timer_service.dart
-Future<void> initialize() async {
-  await _notificationService.initialize();
-  await _restoreState();
-  _isRestored = true;
-  notifyListeners();
-}
+Alur Inisialisasi:
+1. main() memanggil WidgetsFlutterBinding.ensureInitialized() dan Firebase.initializeApp().
+2. MultiProvider menyediakan instance AuthService, SessionRepository, MediaService, dan TimerService.
+3. TimerService mengikat MediaService via ChangeNotifierProxyProvider dan memanggil initialize().
+4. NotificationService diinisialisasi: mengonfigurasi timezone dan meminta izin notifikasi serta exact alarms.
+5. TimerService membaca SharedPreferences untuk memulihkan sesi aktif jika aplikasi sempat tertutup sebelumnya.
 
 
 --------------------------------------------------------------------------------
-TAHAP 2: PEMERIKSAAN STATUS LOGIN (AUTH GATE)
-File: lib/features/auth/auth_gate.dart
+TAHAP 2: PEMERIKSAAN OTENTIKASI & GERBANG NAVIGASI (AUTH GATE)
 --------------------------------------------------------------------------------
-AuthGate memantau Stream authStateChanges dari Firebase:
+Komponen yang Terlibat:
+- Screen / Widget : lib/features/auth/auth_gate.dart (AuthGate)
+- Service Terkait : lib/services/auth_service.dart
+- Model Terkait   : lib/data/models/app_user.dart (AppUser)
+- Target Screen   :
+  * Jika unauthenticated : lib/features/auth/login_screen.dart (LoginScreen)
+  * Jika authenticated   : lib/features/timer/timer_screen.dart (TimerScreen)
 
-class AuthGate extends StatelessWidget {
-  const AuthGate({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final authService = context.watch<AuthService>();
-
-    return StreamBuilder<AppUser?>(
-      stream: authService.authStateChanges,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-
-        final user = snapshot.data;
-        if (user == null) {
-          return const LoginScreen(); // Jika belum login -> ke LoginScreen
-        }
-
-        return const TimerScreen(); // Jika sudah login -> ke TimerScreen
-      },
-    );
-  }
-}
+Alur Gerbang:
+1. AuthGate mendengarkan stream authStateChanges dari AuthService (Firebase Auth).
+2. Jika masih loading, menampilkan CircularProgressIndicator di tengah layar.
+3. Jika user bernilai null, menampilkan LoginScreen.
+4. Jika user terautentikasi (non-null), otomatis mengarahkan ke TimerScreen.
 
 
 --------------------------------------------------------------------------------
-TAHAP 3: REGISTRASI & LOGIN AKUN BARU
-File: lib/services/auth_service.dart
+TAHAP 3: LOGIN, REGISTRASI, & RESET PASSWORD
 --------------------------------------------------------------------------------
-Saat user baru menginput email & password:
+Komponen yang Terlibat:
+- Screens / Widgets:
+  * lib/features/auth/login_screen.dart (LoginScreen)
+  * lib/features/auth/register_screen.dart (RegisterScreen)
+- Service Terkait  : lib/services/auth_service.dart
+  * register(email, password)
+  * login(email, password)
+  * resetPassword(email)
+- Model Terkait    : lib/data/models/app_user.dart (AppUser)
+- Backend Backend  : Firebase Authentication
 
-// Mendaftarkan user baru di Firebase
-Future<AppUser?> register(String email, String password) async {
-  final credential = await _firebaseAuth.createUserWithEmailAndPassword(
-    email: email.trim(),
-    password: password,
-  );
-  return _userFromFirebase(credential.user);
-}
-
-// Login user lama
-Future<AppUser?> login(String email, String password) async {
-  final credential = await _firebaseAuth.signInWithEmailAndPassword(
-    email: email.trim(),
-    password: password,
-  );
-  return _userFromFirebase(credential.user);
-}
-
-Begitu register/login berhasil, _firebaseAuth.authStateChanges() menghasilkan user non-null, dan AuthGate secara otomatis langsung mengganti layar ke TimerScreen.
+Alur Login & Registrasi:
+1. User menginput email dan password melalui form login/register dengan validasi field.
+2. AuthService memanggil API Firebase Authentication (signInWithEmailAndPassword / createUserWithEmailAndPassword).
+3. Firebase mengembalikan UserCredential, yang dikonversi ke model AppUser.
+4. Perubahan status login dideteksi secara reaktif oleh AuthGate tanpa perlu Navigator.push manual.
 
 
 --------------------------------------------------------------------------------
-TAHAP 4: PEMILIHAN MEDIA (AUDIO AMBIENCE & VIDEO VERTICAL BACKGROUND)
-File: lib/services/media_service.dart
+TAHAP 4: PENGATURAN MEDIA (AUDIO AMBIENCE & VIDEO BACKGROUND)
 --------------------------------------------------------------------------------
-User membuka modal bottom sheet media dan memilih audio & video latar belakang.
+Komponen yang Terlibat:
+- Sheet / Widget  : lib/features/timer/widgets/media_selector_sheet.dart (MediaSelectorSheet)
+- Service Terkait : lib/services/media_service.dart
+- Engine Eksternal:
+  * package:just_audio (AudioPlayer untuk ambience looping & AudioPlayer untuk alarm)
+  * package:video_player (VideoPlayerController untuk video latar looping)
+- Sumber Media    : lib/core/constants.dart (jsDelivr CDN GitHub URLs)
 
-// Audio diputar berulang (looping) secara non-blocking:
-Future<void> playAmbience(String url) async {
-  try {
-    if (_currentAmbienceUrl == url && _ambiencePlayer.playing) return;
-
-    _currentAmbienceUrl = url;
-    notifyListeners();
-
-    await _ambiencePlayer.setUrl(url);
-    await _ambiencePlayer.setLoopMode(LoopMode.one);
-    await _ambiencePlayer.setVolume(_ambienceVolume);
-    _ambiencePlayer.play();
-  } catch (_) {
-    if (_currentAmbienceUrl == url) {
-      _currentAmbienceUrl = null;
-      notifyListeners();
-    }
-  }
-}
-
-// Video vertikal di-mute dan diputar barengan tanpa menghentikan audio:
-Future<void> setVideoBackground(String? url) async {
-  if (_currentVideoUrl == url && _videoController != null) return;
-
-  if (_videoController != null) {
-    await _videoController!.pause();
-    await _videoController!.dispose();
-    _videoController = null;
-    _isVideoInitialized = false;
-  }
-
-  _currentVideoUrl = url;
-  notifyListeners();
-
-  if (url != null && url.isNotEmpty) {
-    try {
-      final controller = VideoPlayerController.networkUrl(
-        Uri.parse(url),
-        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-      );
-      _videoController = controller;
-      await controller.initialize();
-      await controller.setVolume(0.0);
-      await controller.setLooping(true);
-      await controller.play();
-      _isVideoInitialized = true;
-    } catch (_) {
-      _videoController = null;
-      _isVideoInitialized = false;
-    }
-  }
-
-  notifyListeners();
-}
+Alur Pemilihan Media:
+1. User menekan tombol icon musik di AppBar TimerScreen untuk membuka MediaSelectorSheet.
+2. User dapat memilih opsi audio ambience (White Noise, Rain, Cafe, dll.) dan video background (Study, Nature, dll.).
+3. MediaService.playAmbience() memutar audio secara looping non-blocking di latar belakang.
+4. MediaService.setVideoBackground() menginisialisasi controller video tanpa suara (volume 0.0), looping, dan mixWithOthers: true agar tidak memotong audio ambience.
 
 
 --------------------------------------------------------------------------------
-TAHAP 5: TAMPILAN UTAMA TIMER & VIDEO LATAR VERTIKAL
-File: lib/features/timer/timer_screen.dart
+TAHAP 5: LAYAR UTAMA TIMER & SELEKSI DURASI
 --------------------------------------------------------------------------------
-Video vertikal menempati seluruh background menggunakan Stack dan FittedBox:
+Komponen yang Terlibat:
+- Screen Utama    : lib/features/timer/timer_screen.dart (TimerScreen)
+- Sub-Widgets     :
+  * lib/features/timer/widgets/timer_circle.dart (TimerCircle: visual circular progress & display sisa waktu)
+  * ChoiceChip preset durasi: 15m, 30m, 45m, 60m
+  * TextField custom duration dengan FocusNode terisolasi
+- Services Terkait:
+  * lib/services/timer_service.dart (State timer & controller)
+  * lib/services/timer_engine.dart (Pure Dart State Machine Pomodoro)
+  * lib/services/media_service.dart (Menyediakan videoController untuk Stack background)
 
-body: Stack(
-  fit: StackFit.expand,
-  children: [
-    if (hasVideo &&
-        mediaService.videoController != null &&
-        mediaService.isVideoInitialized)
-      Positioned.fill(
-        child: FittedBox(
-          fit: BoxFit.cover,
-          clipBehavior: Clip.hardEdge,
-          child: SizedBox(
-            width: mediaService.videoController!.value.size.width > 0
-                ? mediaService.videoController!.value.size.width
-                : 9,
-            height: mediaService.videoController!.value.size.height > 0
-                ? mediaService.videoController!.value.size.height
-                : 16,
-            child: VideoPlayer(mediaService.videoController!),
-          ),
-        ),
-      ),
-    if (hasVideo)
-      Positioned.fill(
-        child: Container(
-          color: Colors.black.withValues(alpha: 0.55),
-        ),
-      ),
-    SafeArea(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                if (isIdle) ...[
-                  // Chip pilihan durasi (15m, 30m, 45m, 60m) & input custom
-                ],
-                const Spacer(),
-                TimerCircle(
-                  formattedTime: timerService.formattedRemaining,
-                  progress: timerService.progress,
-                  mode: timerService.phase,
-                  status: timerService.status,
-                ),
-                const Spacer(),
-                _buildControlButtons(context, timerService, theme),
-              ],
-            ),
-          );
-        },
-      ),
-    ),
-  ],
-)
+Alur Seleksi Durasi:
+1. Saat timer berstatus idle:
+   - User dapat mengetuk ChoiceChip preset durasi (15m, 30m, 45m, 60m) atau mengetik durasi custom di TextField.
+   - Sinkronisasi diatur aman via FocusNode: text field tidak ditimpa oleh listener saat user sedang mengetik.
+   - TimerEngine secara otomatis menyusun rencana fase (_plans): membagi sesi menjadi blok fokus 25m + istirahat 5m (atau break panjang tiap kelipatan ke-4).
 
 
 --------------------------------------------------------------------------------
-TAHAP 6: MEMULAI SESI & PENJADWALAN NOTIFIKASI
-File: lib/services/timer_service.dart & lib/services/notification_service.dart
+TAHAP 6: SESI BERJALAN & SISTEM NOTIFIKASI BACKGROUND
 --------------------------------------------------------------------------------
-Saat user menekan tombol 'Mulai':
-File: lib/services/timer_service.dart
-Future<void> start() async {
-  _engine.start(DateTime.now());
-  _startTicker();
-  await _updateWakelock(true);
+Komponen yang Terlibat:
+- Screen / UI     : lib/features/timer/timer_screen.dart (_buildControlButtons)
+- Services Terkait:
+  * lib/services/timer_service.dart (start(), pause(), resume(), stop())
+  * lib/services/timer_engine.dart (tick(), calculateRemaining())
+  * lib/services/notification_service.dart (scheduleTimerNotification(), cancelAllNotifications())
+- Native Android  :
+  * AlarmManager & ScheduledNotificationReceiver (AndroidManifest.xml)
+  * WakelockPlus (menjaga layar tetap aktif saat sesi fokus berjalan)
 
-  if (_engine.endAt != null) {
-    await _notificationService.scheduleTimerNotification(
-      endAt: _engine.endAt!,
-      title: 'Sesi Selesai',
-      body: 'Fase ${_engine.phase.displayName} telah berakhir.',
-    );
-  }
-
-  await _saveState();
-  notifyListeners();
-}
-
-Penjadwalan notifikasi alarm di notification_service.dart:
-File: lib/services/notification_service.dart
-Future<void> scheduleTimerNotification({
-  required DateTime endAt,
-  required String title,
-  required String body,
-  int id = 1001,
-}) async {
-  await initialize();
-
-  final scheduledDate = tz.TZDateTime.from(endAt, tz.local);
-  if (scheduledDate.isBefore(tz.TZDateTime.now(tz.local))) {
-    return;
-  }
-
-  const notificationDetails = NotificationDetails(
-    android: AndroidNotificationDetails(
-      'timer_channel',
-      'Timer Notifications',
-      channelDescription: 'Pemberitahuan saat sesi Pomodoro selesai',
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-    ),
-  );
-
-  try {
-    await _notificationsPlugin.zonedSchedule(
-      id,
-      title,
-      body,
-      scheduledDate,
-      notificationDetails,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-    );
-  } catch (_) {
-    try {
-      await _notificationsPlugin.zonedSchedule(
-        id,
-        title,
-        body,
-        scheduledDate,
-        notificationDetails,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-      );
-    } catch (_) {}
-  }
-}
-
-Saat pergantian fase (Fokus -> Istirahat, atau Istirahat -> Fokus), sistem langsung mengirim notifikasi instan dan membunyikan alarm transisi:
-File: lib/services/timer_service.dart
-Future<void> _onPhaseTransitioned() async {
-  final isNowBreak = _engine.phase.isBreak;
-  final alertTitle = isNowBreak ? 'Sesi Fokus Selesai!' : 'Waktu Istirahat Selesai!';
-  final alertBody = isNowBreak
-      ? 'Waktunya istirahat (${_engine.currentPhaseDuration.inMinutes} menit).'
-      : 'Mari mulai fokus kembali (${_engine.currentPhaseDuration.inMinutes} menit).';
-
-  await _notificationService.showImmediateNotification(
-    title: alertTitle,
-    body: alertBody,
-    id: 1002,
-  );
-
-  _mediaService?.playAlarm();
-
-  if (_engine.endAt != null) {
-    await _notificationService.scheduleTimerNotification(
-      endAt: _engine.endAt!,
-      title: isNowBreak ? 'Istirahat Selesai' : 'Sesi Selesai',
-      body: 'Fase ${_engine.phase.displayName} telah berakhir.',
-    );
-  }
-  await _saveState();
-  notifyListeners();
-}
+Alur Sesi Berjalan:
+1. User menekan tombol 'Mulai [N] Menit':
+   - Validasi fallback memastikan durasi valid.
+   - TimerEngine mengaktifkan status running dan menetapkan _startAt serta _endAt.
+   - WakelockPlus diaktifkan.
+2. Penjadwalan Notifikasi Penuh (Anti-Sleep):
+   - TimerService._scheduleAllPhaseNotifications() mendaftarkan seluruh fase waktu yang akan datang ke AlarmManager sistem operasi Android dengan ID unik.
+   - Jika user menekan tombol Home atau aplikasi diminimize, Alarm Android tetap membunyikan dan memunculkan notifikasi sesi tepat waktu tanpa bergantung pada Flutter ticker.
+3. Pause & Resume:
+   - Tombol 'Jeda': membatalkan semua alarm terjadwal, menyimpan pausedRemaining, dan menonaktifkan wakelock.
+   - Tombol 'Lanjut': menghitung ulang _endAt baru dan menjadwalkan ulang seluruh sisa fase notifikasi.
 
 
 --------------------------------------------------------------------------------
-TAHAP 7: PROTEKSI TOMBOL BACK SAAT SESI BERJALAN
-File: lib/features/timer/timer_screen.dart
+TAHAP 7: INTERCEPT BACK BUTTON & DIALOG KONFIRMASI
 --------------------------------------------------------------------------------
-Jika user menekan tombol Back di HP saat timer sedang berjalan:
+Komponen yang Terlibat:
+- Screen / Widget : lib/features/timer/timer_screen.dart (PopScope & _onWillPop)
+- Dialog Widget   : AlertDialog dengan 3 opsi aksi
+- Services Terkait:
+  * TimerService (stop)
+  * MediaService (stopAmbience)
+- System Platform : SystemNavigator.pop()
 
-return PopScope(
-  canPop: false,
-  onPopInvokedWithResult: (didPop, _) async {
-    if (didPop) return;
-    await _onWillPop(timerService, mediaService);
-  },
-  child: Scaffold(...),
-);
-
-Fungsi _onWillPop menampilkan dialog konfirmasi:
-Future<void> _onWillPop(TimerService timerService, MediaService mediaService) async {
-  final isSessionActive = timerService.isRunning || timerService.isPaused;
-  if (!isSessionActive) {
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    } else {
-      await SystemNavigator.pop();
-    }
-    return;
-  }
-
-  final theme = Theme.of(context);
-  final result = await showDialog<String>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: theme.colorScheme.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 56, height: 56,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.error.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.warning_amber_rounded, color: theme.colorScheme.error, size: 32),
-          ),
-          const SizedBox(height: 16),
-          Text('Sesi Masih Berjalan', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text('Keluar sekarang akan menghentikan timer dan musik yang sedang berjalan.'),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(ctx, 'stay'),
-            icon: const Icon(Icons.play_arrow_rounded),
-            label: const Text('Tetap di Sini'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.pop(ctx, 'stop'),
-            icon: const Icon(Icons.stop_rounded),
-            label: const Text('Hentikan Sesi'),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  if (result == 'stop') {
-    await timerService.stop();
-    await mediaService.stopAmbience();
-  }
-}
+Alur Intercept Tombol Kembali (Back Button / Gesture):
+1. Layar dibungkus PopScope(canPop: false).
+2. Jika tombol Back ditekan saat sesi TIDAK aktif: aplikasi keluar atau pop secara normal.
+3. Jika tombol Back ditekan saat sesi SEDANG AKTIF (running / paused), muncul dialog konfirmasi dengan 3 pilihan:
+   a. 'Tetap di Sini' : Menutup dialog; timer dan audio terus berjalan normal.
+   b. 'Minimize'      : Memanggil SystemNavigator.pop() sehingga aplikasi pindah ke latar belakang (background) seperti tombol Home, dengan timer dan musik tetap aktif.
+   c. 'Hentikan Sesi' : Mematikan timer (timerService.stop()), mematikan audio/video (mediaService.stopAmbience()), lalu keluar dari aplikasi.
 
 
 --------------------------------------------------------------------------------
-TAHAP 8: SESI SELESAI, ALARM, REFLEKSI, & SIMPAN KE FIRESTORE
-File: lib/features/timer/widgets/finish_sheet.dart
+TAHAP 8: SESI SELESAI, ALARM, REFLEKSI, & PENYIMPANAN RIWAYAT
 --------------------------------------------------------------------------------
-Ketika waktu habis, alarm berbunyi dan FinishSheet terbuka:
+Komponen yang Terlibat:
+- Sheet / Widget  : lib/features/timer/widgets/finish_sheet.dart (FinishSheet)
+- Data Layer      :
+  * Model      : lib/data/models/session_record.dart (SessionRecord)
+  * Repository : lib/data/repositories/session_repository.dart (SessionRepository)
+  * Database   : Cloud Firestore (koleksi: 'users/{uid}/sessions')
+- Services Terkait:
+  * MediaService (playAlarm(), stopAlarm())
+  * AuthService (currentUser UID)
+  * TimerService (stop())
+- Native / Build  : ProGuard rules menjaga TypeToken & model serialization Firestore pada APK Release.
 
-Future<void> _saveSession() async {
-  setState(() => _isSaving = true);
-
-  try {
-    final user = context.read<AuthService>().currentUser;
-    if (user != null) {
-      final session = SessionRecord(
-        id: '',
-        userId: user.id,
-        mode: widget.completedMode.name,
-        durationMinutes: widget.completedDuration.inMinutes,
-        reflection: _reflectionController.text.trim(),
-        hasProof: false,
-        createdAt: DateTime.now(),
-      );
-
-      // Simpan ke database Firestore
-      await context.read<SessionRepository>().createSession(user.id, session);
-    }
-
-    final timerService = context.read<TimerService>();
-    await timerService.stop();
-
-    if (mounted) {
-      Navigator.pop(context);
-    }
-  } catch (e) {
-    // Penanganan error
-  }
-}
+Alur Penyelesaian:
+1. Ketika timer mencapai akhir, MediaService memicu suara alarm.
+2. TimerScreen secara otomatis menampilkan modal FinishSheet.
+3. FinishSheet menampilkan ringkasan mode dan durasi yang telah diselesaikan serta form input catatan refleksi (maks. 280 karakter).
+4. Ketika user menekan 'Simpan Sesi':
+   - Dibuat objek SessionRecord dengan timestamp saat ini.
+   - SessionRepository.createSession() menyimpan data ke dokumen Cloud Firestore di bawah UID user.
+   - Timer direset ke idle, modal ditutup, dan alarm dimatikan.
 
 
 --------------------------------------------------------------------------------
-TAHAP 9: LOG OUT
-File: lib/features/timer/timer_screen.dart & lib/services/auth_service.dart
+TAHAP 9: RIWAYAT SESI & STATISTIK PENCAPAIAN
 --------------------------------------------------------------------------------
-Saat user menekan tombol logout di AppBar:
+Komponen yang Terlibat:
+- Screens / Widgets:
+  * lib/features/sessions/sessions_history_screen.dart (SessionsHistoryScreen)
+  * lib/features/sessions/session_detail_screen.dart (SessionDetailScreen)
+  * lib/features/stats/stats_screen.dart (StatsScreen)
+- Data Layer       :
+  * lib/data/repositories/session_repository.dart
+    - watchRecentSessions() / getRecentSessions()
+    - getSessionsForDateRange()
+    - deleteSession() / updateSession()
+  * lib/data/models/session_record.dart (SessionRecord)
+- Service Terkait  : lib/services/auth_service.dart (menyediakan user.id)
 
-Future<void> _confirmLogout() async {
-  final theme = Theme.of(context);
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: theme.colorScheme.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 56, height: 56,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.error.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.logout_rounded, color: theme.colorScheme.error, size: 30),
-          ),
-          const SizedBox(height: 16),
-          Text('Keluar Akun?', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text('Kamu akan keluar dari akun ini. Sesi yang sedang berjalan akan dihentikan.'),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.logout_rounded),
-            label: const Text('Keluar'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-        ],
-      ),
-    ),
-  );
+Alur Riwayat & Statistik:
+1. Tombol History di AppBar membuka SessionsHistoryScreen:
+   - Menampilkan Stream/List sesi yang diambil dari Firestore (terurut descending berdasarkan tanggal).
+   - Mengetuk item riwayat membuka SessionDetailScreen untuk melihat detail waktu atau menghapus sesi.
+2. Tombol Insights di AppBar membuka StatsScreen:
+   - Menghitung total fokus hari ini, minggu ini, dan streak hari berturut-turut.
+   - Menampilkan diagram batang distribusi waktu fokus per hari secara native tanpa library eksternal.
 
-  // Jika user menyetujui logout:
-  if (confirmed == true && mounted) {
-    await context.read<TimerService>().stop(); // Hentikan timer & notifikasi
-    if (mounted) {
-      await context.read<MediaService>().stopAmbience(); // Hentikan audio & video
-    }
-    if (mounted) {
-      await context.read<AuthService>().logout(); // Firebase sign out
-    }
-  }
-}
 
-Di AuthService:
-Future<void> logout() async {
-  await _firebaseAuth.signOut();
-}
+--------------------------------------------------------------------------------
+TAHAP 10: KELUAR AKUN (LOGOUT)
+--------------------------------------------------------------------------------
+Komponen yang Terlibat:
+- Screen / Widget : lib/features/timer/timer_screen.dart (_confirmLogout)
+- Dialog Widget   : AlertDialog konfirmasi logout
+- Services Terkait:
+  * lib/services/timer_service.dart (stop())
+  * lib/services/media_service.dart (stopAmbience())
+  * lib/services/auth_service.dart (logout())
+- Navigation Gate : lib/features/auth/auth_gate.dart (AuthGate)
 
-Setelah _firebaseAuth.signOut(), stream authStateChanges menghasilkan null, sehingga AuthGate di Tahap 2 secara otomatis mengalihkan layar kembali ke LoginScreen.
+Alur Logout:
+1. User menekan icon logout di AppBar TimerScreen.
+2. Muncul dialog konfirmasi 'Keluar Akun?'.
+3. Jika user menekan 'Keluar':
+   - timerService.stop() dipanggil untuk menghentikan sesi aktif dan membersihkan semua notifikasi alarm.
+   - mediaService.stopAmbience() menghentikan audio dan membuang controller video.
+   - authService.logout() mengeksekusi signOut() pada Firebase Auth.
+4. Stream authStateChanges pada AuthGate mendeteksi user menjadi null, dan secara otomatis meredirect tampilan ke LoginScreen.
 ================================================================================
-

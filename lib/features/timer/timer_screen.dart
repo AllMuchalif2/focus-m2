@@ -22,6 +22,7 @@ class TimerScreen extends StatefulWidget {
 class _TimerScreenState extends State<TimerScreen> {
   bool _isFinishSheetOpen = false;
   late final TextEditingController _durationInputController;
+  late final FocusNode _durationFocusNode;
   int? _lastPlanIndex;
 
   static const List<int> _presetMinutes = [15, 30, 45, 60];
@@ -30,11 +31,13 @@ class _TimerScreenState extends State<TimerScreen> {
   void initState() {
     super.initState();
     _durationInputController = TextEditingController();
+    _durationFocusNode = FocusNode();
   }
 
   @override
   void dispose() {
     _durationInputController.dispose();
+    _durationFocusNode.dispose();
     super.dispose();
   }
 
@@ -43,7 +46,8 @@ class _TimerScreenState extends State<TimerScreen> {
     super.didChangeDependencies();
     final timerService = context.watch<TimerService>();
 
-    if (_durationInputController.text != timerService.totalSessionMinutes.toString()) {
+    if (!_durationFocusNode.hasFocus &&
+        _durationInputController.text != timerService.totalSessionMinutes.toString()) {
       _durationInputController.text = timerService.totalSessionMinutes.toString();
     }
 
@@ -183,6 +187,21 @@ class _TimerScreenState extends State<TimerScreen> {
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: () => Navigator.pop(ctx, 'minimize'),
+              icon: const Icon(Icons.minimize_rounded),
+              label: const Text(
+                'Minimize',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
                 foregroundColor: theme.colorScheme.error,
                 side: BorderSide(
                   color: theme.colorScheme.error.withValues(alpha: 0.5),
@@ -200,9 +219,18 @@ class _TimerScreenState extends State<TimerScreen> {
       ),
     );
 
-    if (result == 'stop') {
+    if (result == 'minimize') {
+      await SystemNavigator.pop();
+    } else if (result == 'stop') {
       await timerService.stop();
       await mediaService.stopAmbience();
+      if (mounted) {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        } else {
+          await SystemNavigator.pop();
+        }
+      }
     }
   }
 
@@ -419,6 +447,7 @@ class _TimerScreenState extends State<TimerScreen> {
                                 label: Text('${mins}m'),
                                 selected: isSelected,
                                 onSelected: (_) {
+                                  _durationFocusNode.unfocus();
                                   _durationInputController.text = mins.toString();
                                   timerService.setTotalMinutes(mins);
                                 },
@@ -439,6 +468,7 @@ class _TimerScreenState extends State<TimerScreen> {
                                 height: 40,
                                 child: TextField(
                                   controller: _durationInputController,
+                                  focusNode: _durationFocusNode,
                                   keyboardType: TextInputType.number,
                                   textAlign: TextAlign.center,
                                   decoration: InputDecoration(
@@ -459,7 +489,7 @@ class _TimerScreenState extends State<TimerScreen> {
                                   },
                                   onSubmitted: (val) {
                                     final parsed = int.tryParse(val);
-                                    final valid = (parsed == null || parsed < 1) ? 1 : parsed;
+                                    final valid = (parsed == null || parsed < 1) ? 25 : parsed;
                                     _durationInputController.text = valid.toString();
                                     timerService.setTotalMinutes(valid);
                                   },
@@ -527,7 +557,16 @@ class _TimerScreenState extends State<TimerScreen> {
         width: 220,
         height: 52,
         child: FilledButton.icon(
-          onPressed: () => timerService.start(),
+          onPressed: () {
+            _durationFocusNode.unfocus();
+            final parsed = int.tryParse(_durationInputController.text);
+            if (parsed == null || parsed < 1) {
+              _durationInputController.text = timerService.totalSessionMinutes.toString();
+            } else if (parsed != timerService.totalSessionMinutes) {
+              timerService.setTotalMinutes(parsed);
+            }
+            timerService.start();
+          },
           icon: const Icon(Icons.play_arrow),
           label: Text(
             'Mulai ${timerService.totalSessionMinutes} Menit',

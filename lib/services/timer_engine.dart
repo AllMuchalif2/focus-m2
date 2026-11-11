@@ -238,12 +238,11 @@ class TimerEngine {
     }
 
     final now = currentTime ?? DateTime.now();
-    if (!now.isBefore(_endAt!)) {
+    while (!now.isBefore(_endAt!) && _status == TimerStatus.running) {
       if (_currentPlanIndex < _plans.length - 1) {
         _currentPlanIndex++;
-        _startAt = now;
-        _endAt = now.add(currentPhaseDuration);
-        _status = TimerStatus.running;
+        _startAt = _endAt;
+        _endAt = _endAt!.add(currentPhaseDuration);
       } else {
         _status = TimerStatus.finished;
         _endAt = null;

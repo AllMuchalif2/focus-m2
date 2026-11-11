@@ -33,6 +33,7 @@ class NotificationService {
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     if (androidImplementation != null) {
       await androidImplementation.requestNotificationsPermission();
+      await androidImplementation.requestExactAlarmsPermission();
     }
 
     _isInitialized = true;
@@ -130,5 +131,10 @@ class NotificationService {
   Future<void> cancelTimerNotification({int id = 1001}) async {
     await initialize();
     await _notificationsPlugin.cancel(id);
+  }
+
+  Future<void> cancelAllNotifications() async {
+    await initialize();
+    await _notificationsPlugin.cancelAll();
   }
 }
