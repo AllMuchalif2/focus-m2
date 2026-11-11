@@ -3,16 +3,13 @@ import 'package:provider/provider.dart';
 import '../../../data/models/session_record.dart';
 import '../../../data/repositories/session_repository.dart';
 import '../../../services/auth_service.dart';
-import '../../../services/timer_engine.dart';
 import '../../../services/timer_service.dart';
 
 class FinishSheet extends StatefulWidget {
-  final TimerMode completedMode;
   final Duration completedDuration;
 
   const FinishSheet({
     super.key,
-    required this.completedMode,
     required this.completedDuration,
   });
 
@@ -39,7 +36,7 @@ class _FinishSheetState extends State<FinishSheet> {
         final session = SessionRecord(
           id: '',
           userId: user.id,
-          mode: widget.completedMode.name,
+          mode: 'focus',
           durationMinutes: widget.completedDuration.inMinutes,
           reflection: _reflectionController.text.trim(),
           hasProof: false,
@@ -99,7 +96,7 @@ class _FinishSheetState extends State<FinishSheet> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Sesi ${widget.completedMode.displayName} Selesai!',
+                  'Sesi Fokus Selesai!',
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),

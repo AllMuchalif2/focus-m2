@@ -74,12 +74,12 @@ class _TimerScreenState extends State<TimerScreen> {
 
     if (timerService.isCompleted && !_isFinishSheetOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _openFinishSheet(timerService.mode, Duration(minutes: timerService.totalSessionMinutes));
+        _openFinishSheet(Duration(minutes: timerService.totalSessionMinutes));
       });
     }
   }
 
-  void _openFinishSheet(TimerMode mode, Duration duration) {
+  void _openFinishSheet(Duration duration) {
     if (!mounted || _isFinishSheetOpen) return;
     setState(() => _isFinishSheetOpen = true);
 
@@ -92,7 +92,6 @@ class _TimerScreenState extends State<TimerScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => FinishSheet(
-        completedMode: mode,
         completedDuration: duration,
       ),
     ).whenComplete(() {
@@ -635,7 +634,6 @@ class _TimerScreenState extends State<TimerScreen> {
       height: 52,
       child: FilledButton.icon(
         onPressed: () => _openFinishSheet(
-          timerService.mode,
           Duration(minutes: timerService.totalSessionMinutes),
         ),
         icon: const Icon(Icons.check),
