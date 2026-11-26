@@ -20,20 +20,23 @@ void main() {
       expect(engine.plans[1].duration, const Duration(minutes: 5));
     });
 
-    test('60m session generates 2 focus sessions (25m) and 2 break sessions (5m)', () {
-      engine = TimerEngine(totalMinutes: 60);
+    test(
+      '60m session generates 2 focus sessions (25m) and 2 break sessions (5m)',
+      () {
+        engine = TimerEngine(totalMinutes: 60);
 
-      expect(engine.plans.length, 4);
-      expect(engine.plans[0].phase, TimerPhase.focus);
-      expect(engine.plans[0].duration, const Duration(minutes: 25));
-      expect(engine.plans[1].phase, TimerPhase.shortBreak);
-      expect(engine.plans[1].duration, const Duration(minutes: 5));
+        expect(engine.plans.length, 4);
+        expect(engine.plans[0].phase, TimerPhase.focus);
+        expect(engine.plans[0].duration, const Duration(minutes: 25));
+        expect(engine.plans[1].phase, TimerPhase.shortBreak);
+        expect(engine.plans[1].duration, const Duration(minutes: 5));
 
-      expect(engine.plans[2].phase, TimerPhase.focus);
-      expect(engine.plans[2].duration, const Duration(minutes: 25));
-      expect(engine.plans[3].phase, TimerPhase.shortBreak);
-      expect(engine.plans[3].duration, const Duration(minutes: 5));
-    });
+        expect(engine.plans[2].phase, TimerPhase.focus);
+        expect(engine.plans[2].duration, const Duration(minutes: 25));
+        expect(engine.plans[3].phase, TimerPhase.shortBreak);
+        expect(engine.plans[3].duration, const Duration(minutes: 5));
+      },
+    );
 
     test('Start begins phase 1 and endAt is based on phase duration', () {
       engine = TimerEngine(totalMinutes: 30);
@@ -42,23 +45,28 @@ void main() {
       expect(engine.status, TimerStatus.running);
       expect(engine.currentPhase, TimerPhase.focus);
       expect(engine.endAt, baseTime.add(const Duration(minutes: 25)));
-      expect(engine.calculateRemaining(baseTime.add(const Duration(minutes: 10))),
-          const Duration(minutes: 15));
+      expect(
+        engine.calculateRemaining(baseTime.add(const Duration(minutes: 10))),
+        const Duration(minutes: 15),
+      );
     });
 
-    test('When 25m focus finishes, tick automatically transitions to 5m break', () {
-      engine = TimerEngine(totalMinutes: 30);
-      engine.start(baseTime);
+    test(
+      'When 25m focus finishes, tick automatically transitions to 5m break',
+      () {
+        engine = TimerEngine(totalMinutes: 30);
+        engine.start(baseTime);
 
-      final focusEnd = baseTime.add(const Duration(minutes: 25));
-      engine.tick(focusEnd);
+        final focusEnd = baseTime.add(const Duration(minutes: 25));
+        engine.tick(focusEnd);
 
-      expect(engine.status, TimerStatus.running);
-      expect(engine.currentPlanIndex, 1);
-      expect(engine.currentPhase, TimerPhase.shortBreak);
-      expect(engine.currentPhaseDuration, const Duration(minutes: 5));
-      expect(engine.endAt, focusEnd.add(const Duration(minutes: 5)));
-    });
+        expect(engine.status, TimerStatus.running);
+        expect(engine.currentPlanIndex, 1);
+        expect(engine.currentPhase, TimerPhase.shortBreak);
+        expect(engine.currentPhaseDuration, const Duration(minutes: 5));
+        expect(engine.endAt, focusEnd.add(const Duration(minutes: 5)));
+      },
+    );
 
     test('When 5m break finishes, session completes to finished status', () {
       engine = TimerEngine(totalMinutes: 30);
@@ -77,6 +85,18 @@ void main() {
       expect(engine.endAt, isNull);
     });
 
+    test('A 1m session finishes when its only focus phase expires', () {
+      engine = TimerEngine(totalMinutes: 1);
+      engine.start(baseTime);
+
+      final sessionEnd = baseTime.add(const Duration(minutes: 1));
+      final status = engine.tick(sessionEnd);
+
+      expect(status, TimerStatus.finished);
+      expect(engine.isFinished, isTrue);
+      expect(engine.remainingDuration, Duration.zero);
+    });
+
     test('Pause and resume preserve accurate remaining time', () {
       engine = TimerEngine(totalMinutes: 30);
       engine.start(baseTime);
@@ -85,7 +105,10 @@ void main() {
       engine.pause(tenMinutesLater);
 
       expect(engine.status, TimerStatus.paused);
-      expect(engine.calculateRemaining(tenMinutesLater), const Duration(minutes: 15));
+      expect(
+        engine.calculateRemaining(tenMinutesLater),
+        const Duration(minutes: 15),
+      );
 
       final resumeTime = baseTime.add(const Duration(minutes: 20));
       engine.resume(resumeTime);

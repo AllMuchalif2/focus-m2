@@ -95,39 +95,6 @@ class NotificationService {
     }
   }
 
-  Future<void> showImmediateNotification({
-    required String title,
-    required String body,
-    int id = 1002,
-  }) async {
-    await initialize();
-
-    const notificationDetails = NotificationDetails(
-      android: AndroidNotificationDetails(
-        'timer_channel',
-        'Timer Notifications',
-        channelDescription: 'Pemberitahuan saat sesi Pomodoro selesai',
-        importance: Importance.max,
-        priority: Priority.high,
-        playSound: true,
-      ),
-      iOS: DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      ),
-    );
-
-    try {
-      await _notificationsPlugin.show(
-        id,
-        title,
-        body,
-        notificationDetails,
-      );
-    } catch (_) {}
-  }
-
   Future<void> cancelTimerNotification({int id = 1001}) async {
     await initialize();
     await _notificationsPlugin.cancel(id);

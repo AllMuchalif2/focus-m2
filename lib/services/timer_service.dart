@@ -14,7 +14,6 @@ class TimerService extends ChangeNotifier {
   final NotificationService _notificationService;
   MediaService? _mediaService;
   Timer? _ticker;
-  bool _isRestored = false;
 
   TimerService({
     TimerEngine? engine,
@@ -30,12 +29,10 @@ class TimerService extends ChangeNotifier {
 
   TimerStatus get status => _engine.status;
   TimerPhase get phase => _engine.phase;
-  TimerMode get mode => _engine.mode;
   int get totalSessionMinutes => _engine.totalSessionMinutes;
   int get currentPlanIndex => _engine.currentPlanIndex;
   int get totalPlansCount => _engine.totalPlansCount;
 
-  Duration get totalDuration => _engine.totalDuration;
   Duration get remainingDuration => _engine.remainingDuration;
   DateTime? get startAt => _engine.startAt;
   DateTime? get endAt => _engine.endAt;
@@ -43,10 +40,8 @@ class TimerService extends ChangeNotifier {
   bool get isRunning => _engine.isRunning;
   bool get isPaused => _engine.isPaused;
   bool get isCompleted => _engine.isFinished;
-  bool get isFinished => _engine.isFinished;
   bool get isInitial => _engine.isIdle;
   bool get isIdle => _engine.isIdle;
-  bool get isRestored => _isRestored;
 
   double get progress {
     if (_engine.currentPhaseDuration.inMilliseconds == 0) return 0.0;
@@ -71,7 +66,6 @@ class TimerService extends ChangeNotifier {
   Future<void> initialize() async {
     await _notificationService.initialize();
     await _restoreState();
-    _isRestored = true;
     notifyListeners();
   }
 
@@ -83,12 +77,6 @@ class TimerService extends ChangeNotifier {
     _engine.setTotalMinutes(minutes);
     await _saveState();
     notifyListeners();
-  }
-
-  Future<void> setMode(TimerMode mode, {Duration? customDuration}) async {
-    if (customDuration != null) {
-      await setTotalMinutes(customDuration.inMinutes);
-    }
   }
 
   Future<void> _scheduleAllPhaseNotifications() async {
@@ -180,17 +168,21 @@ class TimerService extends ChangeNotifier {
   }
 
   Future<void> _onPhaseTransitioned() async {
-    _mediaService?.playAlarm();
-    await _saveState();
     notifyListeners();
+    try {
+      await _mediaService?.playAlarm();
+    } catch (_) {}
+    await _saveState();
   }
 
   Future<void> _onCompleted() async {
     _stopTicker();
-    await _updateWakelock(false);
-    _mediaService?.playAlarm();
-    await _saveState();
     notifyListeners();
+    try {
+      await _mediaService?.playAlarm();
+    } catch (_) {}
+    await _updateWakelock(false);
+    await _saveState();
   }
 
   Future<void> _updateWakelock(bool enable) async {

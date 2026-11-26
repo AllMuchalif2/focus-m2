@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'core/theme.dart';
 import 'data/repositories/session_repository.dart';
 import 'features/auth/auth_gate.dart';
@@ -21,19 +22,13 @@ class FocusApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<AuthService>(
-          create: (_) => AuthService(),
-        ),
-        Provider<SessionRepository>(
-          create: (_) => SessionRepository(),
-        ),
-        ChangeNotifierProvider<MediaService>(
-          create: (_) => MediaService(),
-        ),
+        Provider<AuthService>(create: (_) => AuthService()),
+        Provider<SessionRepository>(create: (_) => SessionRepository()),
+        ChangeNotifierProvider<MediaService>(create: (_) => MediaService()),
         ChangeNotifierProxyProvider<MediaService, TimerService>(
-          create: (ctx) => TimerService(
-            mediaService: ctx.read<MediaService>(),
-          )..initialize(),
+          create: (ctx) =>
+              TimerService(mediaService: ctx.read<MediaService>())
+                ..initialize(),
           update: (_, media, timer) => timer!..attachMediaService(media),
         ),
       ],

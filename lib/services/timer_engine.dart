@@ -1,17 +1,6 @@
-enum TimerStatus {
-  idle,
-  running,
-  paused,
-  finished,
-}
+enum TimerStatus { idle, running, paused, finished }
 
-enum TimerPhase {
-  focus,
-  shortBreak,
-  longBreak,
-}
-
-typedef TimerMode = TimerPhase;
+enum TimerPhase { focus, shortBreak, longBreak }
 
 extension TimerPhaseExtension on TimerPhase {
   String get displayName {
@@ -35,10 +24,7 @@ class PhasePlan {
   const PhasePlan({required this.phase, required this.duration});
 
   Map<String, dynamic> toMap() {
-    return {
-      'phase': phase.name,
-      'durationMs': duration.inMilliseconds,
-    };
+    return {'phase': phase.name, 'durationMs': duration.inMilliseconds};
   }
 
   factory PhasePlan.fromMap(Map<String, dynamic> map) {
@@ -48,7 +34,10 @@ class PhasePlan {
       orElse: () => TimerPhase.focus,
     );
     final durationMs = map['durationMs'] as int? ?? 25 * 60 * 1000;
-    return PhasePlan(phase: phase, duration: Duration(milliseconds: durationMs));
+    return PhasePlan(
+      phase: phase,
+      duration: Duration(milliseconds: durationMs),
+    );
   }
 }
 
@@ -63,17 +52,16 @@ class TimerEngine {
   DateTime? _endAt;
 
   TimerEngine({int totalMinutes = 30})
-      : _status = TimerStatus.idle,
-        _totalSessionMinutes = totalMinutes < 1 ? 1 : totalMinutes,
-        _plans = _generatePlans(totalMinutes < 1 ? 1 : totalMinutes),
-        _currentPlanIndex = 0,
-        _pausedRemaining = Duration.zero {
+    : _status = TimerStatus.idle,
+      _totalSessionMinutes = totalMinutes < 1 ? 1 : totalMinutes,
+      _plans = _generatePlans(totalMinutes < 1 ? 1 : totalMinutes),
+      _currentPlanIndex = 0,
+      _pausedRemaining = Duration.zero {
     _pausedRemaining = currentPhaseDuration;
   }
 
   TimerStatus get status => _status;
   int get totalSessionMinutes => _totalSessionMinutes;
-  Duration get totalSessionDuration => Duration(minutes: _totalSessionMinutes);
   List<PhasePlan> get plans => List.unmodifiable(_plans);
   int get currentPlanIndex => _currentPlanIndex;
   int get totalPlansCount => _plans.length;
@@ -81,14 +69,13 @@ class TimerEngine {
   TimerPhase get currentPhase =>
       _plans.isNotEmpty ? _plans[_currentPlanIndex].phase : TimerPhase.focus;
   TimerPhase get phase => currentPhase;
-  TimerPhase get mode => currentPhase;
 
   DateTime? get startAt => _startAt;
   DateTime? get endAt => _endAt;
 
-  Duration get currentPhaseDuration =>
-      _plans.isNotEmpty ? _plans[_currentPlanIndex].duration : const Duration(minutes: 25);
-  Duration get totalDuration => currentPhaseDuration;
+  Duration get currentPhaseDuration => _plans.isNotEmpty
+      ? _plans[_currentPlanIndex].duration
+      : const Duration(minutes: 25);
 
   Duration get remainingDuration {
     if (_status == TimerStatus.idle) {
@@ -116,9 +103,6 @@ class TimerEngine {
   bool get isPaused => _status == TimerStatus.paused;
   bool get isFinished => _status == TimerStatus.finished;
 
-  bool get isInitial => isIdle;
-  bool get isCompleted => isFinished;
-
   static List<PhasePlan> _generatePlans(int totalMinutes) {
     final clamped = totalMinutes < 1 ? 1 : totalMinutes;
     final List<PhasePlan> result = [];
@@ -127,36 +111,48 @@ class TimerEngine {
 
     while (remaining > 0) {
       if (remaining <= 25) {
-        result.add(PhasePlan(
-          phase: TimerPhase.focus,
-          duration: Duration(minutes: remaining),
-        ));
+        result.add(
+          PhasePlan(
+            phase: TimerPhase.focus,
+            duration: Duration(minutes: remaining),
+          ),
+        );
         remaining = 0;
       } else if (remaining <= 30) {
-        result.add(const PhasePlan(
-          phase: TimerPhase.focus,
-          duration: Duration(minutes: 25),
-        ));
+        result.add(
+          const PhasePlan(
+            phase: TimerPhase.focus,
+            duration: Duration(minutes: 25),
+          ),
+        );
         focusCount++;
         final breakMinutes = remaining - 25;
         if (breakMinutes > 0) {
-          result.add(PhasePlan(
-            phase: focusCount % 4 == 0 ? TimerPhase.longBreak : TimerPhase.shortBreak,
-            duration: Duration(minutes: breakMinutes),
-          ));
+          result.add(
+            PhasePlan(
+              phase: focusCount % 4 == 0
+                  ? TimerPhase.longBreak
+                  : TimerPhase.shortBreak,
+              duration: Duration(minutes: breakMinutes),
+            ),
+          );
         }
         remaining = 0;
       } else {
-        result.add(const PhasePlan(
-          phase: TimerPhase.focus,
-          duration: Duration(minutes: 25),
-        ));
+        result.add(
+          const PhasePlan(
+            phase: TimerPhase.focus,
+            duration: Duration(minutes: 25),
+          ),
+        );
         focusCount++;
         final isLong = focusCount % 4 == 0;
-        result.add(PhasePlan(
-          phase: isLong ? TimerPhase.longBreak : TimerPhase.shortBreak,
-          duration: const Duration(minutes: 5),
-        ));
+        result.add(
+          PhasePlan(
+            phase: isLong ? TimerPhase.longBreak : TimerPhase.shortBreak,
+            duration: const Duration(minutes: 5),
+          ),
+        );
         remaining -= 30;
       }
     }
@@ -175,18 +171,6 @@ class TimerEngine {
     _status = TimerStatus.idle;
     _startAt = null;
     _endAt = null;
-  }
-
-  void configureDurations({int? focusMinutes, int? shortBreakMinutes, int? longBreakMinutes}) {
-    if (focusMinutes != null) {
-      setTotalMinutes(focusMinutes);
-    }
-  }
-
-  void setMode(TimerPhase mode, {Duration? customDuration}) {
-    if (customDuration != null) {
-      setTotalMinutes(customDuration.inMinutes);
-    }
   }
 
   void start([DateTime? now]) {
@@ -238,7 +222,9 @@ class TimerEngine {
     }
 
     final now = currentTime ?? DateTime.now();
-    while (!now.isBefore(_endAt!) && _status == TimerStatus.running) {
+    while (_status == TimerStatus.running &&
+        _endAt != null &&
+        !now.isBefore(_endAt!)) {
       if (_currentPlanIndex < _plans.length - 1) {
         _currentPlanIndex++;
         _startAt = _endAt;
@@ -271,12 +257,6 @@ class TimerEngine {
     return _endAt!.difference(now);
   }
 
-  void jumpTime(Duration offset, [DateTime? now]) {
-    if (_status != TimerStatus.running || _endAt == null) return;
-    _endAt = _endAt!.subtract(offset);
-    tick(now ?? DateTime.now());
-  }
-
   Map<String, dynamic> toMap() {
     return {
       'status': _status.name,
@@ -299,8 +279,12 @@ class TimerEngine {
     final totalMinutes = map['totalSessionMinutes'] as int? ?? 30;
     final planIndex = map['currentPlanIndex'] as int? ?? 0;
     final pausedMs = map['pausedRemainingMs'] as int?;
-    final startAt = map['startAt'] != null ? DateTime.parse(map['startAt'] as String) : null;
-    final endAt = map['endAt'] != null ? DateTime.parse(map['endAt'] as String) : null;
+    final startAt = map['startAt'] != null
+        ? DateTime.parse(map['startAt'] as String)
+        : null;
+    final endAt = map['endAt'] != null
+        ? DateTime.parse(map['endAt'] as String)
+        : null;
 
     final engine = TimerEngine(totalMinutes: totalMinutes)
       .._status = savedStatus

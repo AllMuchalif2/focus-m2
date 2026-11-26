@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
+
 import '../../services/auth_service.dart';
 import '../../services/media_service.dart';
 import '../../services/timer_engine.dart';
@@ -47,8 +48,10 @@ class _TimerScreenState extends State<TimerScreen> {
     final timerService = context.watch<TimerService>();
 
     if (!_durationFocusNode.hasFocus &&
-        _durationInputController.text != timerService.totalSessionMinutes.toString()) {
-      _durationInputController.text = timerService.totalSessionMinutes.toString();
+        _durationInputController.text !=
+            timerService.totalSessionMinutes.toString()) {
+      _durationInputController.text = timerService.totalSessionMinutes
+          .toString();
     }
 
     if (_lastPlanIndex != null &&
@@ -83,17 +86,13 @@ class _TimerScreenState extends State<TimerScreen> {
     if (!mounted || _isFinishSheetOpen) return;
     setState(() => _isFinishSheetOpen = true);
 
-    context.read<MediaService>().playAlarm();
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => FinishSheet(
-        completedDuration: duration,
-      ),
+      builder: (_) => FinishSheet(completedDuration: duration),
     ).whenComplete(() {
       if (mounted) {
         context.read<MediaService>().stopAlarm();
@@ -114,7 +113,10 @@ class _TimerScreenState extends State<TimerScreen> {
     return '$totalMinutes menit: fokus 25m bergantian dengan istirahat otomatis';
   }
 
-  Future<void> _onWillPop(TimerService timerService, MediaService mediaService) async {
+  Future<void> _onWillPop(
+    TimerService timerService,
+    MediaService mediaService,
+  ) async {
     final isSessionActive = timerService.isRunning || timerService.isPaused;
     if (!isSessionActive) {
       if (Navigator.of(context).canPop()) {
@@ -130,9 +132,7 @@ class _TimerScreenState extends State<TimerScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -239,9 +239,7 @@ class _TimerScreenState extends State<TimerScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -335,215 +333,241 @@ class _TimerScreenState extends State<TimerScreen> {
         await _onWillPop(timerService, mediaService);
       },
       child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Pomodoro Focus'),
-        actions: [
-          IconButton(
-            icon: Icon(
-              mediaService.currentAmbienceUrl != null || mediaService.currentVideoUrl != null
-                  ? Icons.music_note
-                  : Icons.music_note_outlined,
-            ),
-            tooltip: 'Media & Ambience',
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-                builder: (_) => const MediaSelectorSheet(),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.insights_outlined),
-            tooltip: 'Statistik',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const StatsScreen(),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: 'Riwayat Sesi',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const SessionsHistoryScreen(),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Keluar',
-            onPressed: _confirmLogout,
-          ),
-        ],
-      ),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (hasVideo &&
-              mediaService.videoController != null &&
-              mediaService.isVideoInitialized)
-            Positioned.fill(
-              child: FittedBox(
-                fit: BoxFit.cover,
-                clipBehavior: Clip.hardEdge,
-                child: SizedBox(
-                  width: mediaService.videoController!.value.size.width > 0
-                      ? mediaService.videoController!.value.size.width
-                      : 9,
-                  height: mediaService.videoController!.value.size.height > 0
-                      ? mediaService.videoController!.value.size.height
-                      : 16,
-                  child: VideoPlayer(mediaService.videoController!),
-                ),
+        appBar: AppBar(
+          title: const Text('Pomodoro Focus'),
+          actions: [
+            IconButton(
+              icon: Icon(
+                mediaService.currentAmbienceUrl != null ||
+                        mediaService.currentVideoUrl != null
+                    ? Icons.music_note
+                    : Icons.music_note_outlined,
               ),
-            ),
-          if (hasVideo)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.55),
-              ),
-            ),
-          SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
-                child: IntrinsicHeight(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-                    child: Column(
-                      children: [
-                        if (isIdle) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Pilih Durasi Sesi',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 8,
-                            alignment: WrapAlignment.center,
-                            children: _presetMinutes.map((mins) {
-                              final isSelected = timerService.totalSessionMinutes == mins;
-                              return ChoiceChip(
-                                label: Text('${mins}m'),
-                                selected: isSelected,
-                                onSelected: (_) {
-                                  _durationFocusNode.unfocus();
-                                  _durationInputController.text = mins.toString();
-                                  timerService.setTotalMinutes(mins);
-                                },
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Ketik durasi custom:',
-                                style: theme.textTheme.bodyMedium,
-                              ),
-                              const SizedBox(width: 10),
-                              SizedBox(
-                                width: 86,
-                                height: 40,
-                                child: TextField(
-                                  controller: _durationInputController,
-                                  focusNode: _durationFocusNode,
-                                  keyboardType: TextInputType.number,
-                                  textAlign: TextAlign.center,
-                                  decoration: InputDecoration(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 6,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    suffixText: 'm',
-                                  ),
-                                  onChanged: (val) {
-                                    final parsed = int.tryParse(val);
-                                    if (parsed != null && parsed >= 1) {
-                                      timerService.setTotalMinutes(parsed);
-                                    }
-                                  },
-                                  onSubmitted: (val) {
-                                    final parsed = int.tryParse(val);
-                                    final valid = (parsed == null || parsed < 1) ? 25 : parsed;
-                                    _durationInputController.text = valid.toString();
-                                    timerService.setTotalMinutes(valid);
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _getBreakdownText(timerService.totalSessionMinutes),
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                        ] else ...[
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest
-                                  .withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              'Fase ${timerService.currentPlanIndex + 1} dari ${timerService.totalPlansCount} • Total Sesi: ${timerService.totalSessionMinutes}m',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                        const Spacer(),
-                        TimerCircle(
-                          formattedTime: timerService.formattedRemaining,
-                          progress: timerService.progress,
-                          mode: timerService.phase,
-                          status: timerService.status,
-                        ),
-                        const Spacer(),
-                        _buildControlButtons(context, timerService, theme),
-                        const SizedBox(height: 16),
-                      ],
+              tooltip: 'Media & Ambience',
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(20),
                     ),
+                  ),
+                  builder: (_) => const MediaSelectorSheet(),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.insights_outlined),
+              tooltip: 'Statistik',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StatsScreen()),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: 'Riwayat Sesi',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SessionsHistoryScreen(),
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Keluar',
+              onPressed: _confirmLogout,
+            ),
+          ],
+        ),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (hasVideo &&
+                mediaService.videoController != null &&
+                mediaService.isVideoInitialized)
+              Positioned.fill(
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  clipBehavior: Clip.hardEdge,
+                  child: SizedBox(
+                    width: mediaService.videoController!.value.size.width > 0
+                        ? mediaService.videoController!.value.size.width
+                        : 9,
+                    height: mediaService.videoController!.value.size.height > 0
+                        ? mediaService.videoController!.value.size.height
+                        : 16,
+                    child: VideoPlayer(mediaService.videoController!),
                   ),
                 ),
               ),
-            );
-          },
+            if (hasVideo)
+              Positioned.fill(
+                child: Container(color: Colors.black.withValues(alpha: 0.55)),
+              ),
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: IntrinsicHeight(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 12.0,
+                          ),
+                          child: Column(
+                            children: [
+                              if (isIdle) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Pilih Durasi Sesi',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 10,
+                                  runSpacing: 8,
+                                  alignment: WrapAlignment.center,
+                                  children: _presetMinutes.map((mins) {
+                                    final isSelected =
+                                        timerService.totalSessionMinutes ==
+                                        mins;
+                                    return ChoiceChip(
+                                      label: Text('${mins}m'),
+                                      selected: isSelected,
+                                      onSelected: (_) {
+                                        _durationFocusNode.unfocus();
+                                        _durationInputController.text = mins
+                                            .toString();
+                                        timerService.setTotalMinutes(mins);
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'Ketik durasi custom:',
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    SizedBox(
+                                      width: 86,
+                                      height: 40,
+                                      child: TextField(
+                                        controller: _durationInputController,
+                                        focusNode: _durationFocusNode,
+                                        keyboardType: TextInputType.number,
+                                        textAlign: TextAlign.center,
+                                        decoration: InputDecoration(
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 6,
+                                              ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          suffixText: 'm',
+                                        ),
+                                        onChanged: (val) {
+                                          final parsed = int.tryParse(val);
+                                          if (parsed != null && parsed >= 1) {
+                                            timerService.setTotalMinutes(
+                                              parsed,
+                                            );
+                                          }
+                                        },
+                                        onSubmitted: (val) {
+                                          final parsed = int.tryParse(val);
+                                          final valid =
+                                              (parsed == null || parsed < 1)
+                                              ? 25
+                                              : parsed;
+                                          _durationInputController.text = valid
+                                              .toString();
+                                          timerService.setTotalMinutes(valid);
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _getBreakdownText(
+                                    timerService.totalSessionMinutes,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                              ] else ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: theme
+                                        .colorScheme
+                                        .surfaceContainerHighest
+                                        .withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    'Fase ${timerService.currentPlanIndex + 1} dari ${timerService.totalPlansCount} • Total Sesi: ${timerService.totalSessionMinutes}m',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              const Spacer(),
+                              TimerCircle(
+                                formattedTime: timerService.formattedRemaining,
+                                progress: timerService.progress,
+                                mode: timerService.phase,
+                                status: timerService.status,
+                              ),
+                              const Spacer(),
+                              _buildControlButtons(
+                                context,
+                                timerService,
+                                theme,
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
-        ],
-      ),
-    ),
-  );
+    );
   }
 
   Widget _buildControlButtons(
@@ -560,7 +584,8 @@ class _TimerScreenState extends State<TimerScreen> {
             _durationFocusNode.unfocus();
             final parsed = int.tryParse(_durationInputController.text);
             if (parsed == null || parsed < 1) {
-              _durationInputController.text = timerService.totalSessionMinutes.toString();
+              _durationInputController.text = timerService.totalSessionMinutes
+                  .toString();
             } else if (parsed != timerService.totalSessionMinutes) {
               timerService.setTotalMinutes(parsed);
             }

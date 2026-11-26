@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+
 import '../../../services/timer_engine.dart';
 
 class TimerCircle extends StatelessWidget {
   final String formattedTime;
   final double progress;
-  final TimerMode mode;
+  final TimerPhase mode;
   final TimerStatus status;
 
   const TimerCircle({
@@ -31,8 +32,10 @@ class TimerCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isFocus = mode == TimerMode.focus;
-    final activeColor = isFocus ? theme.colorScheme.primary : theme.colorScheme.secondary;
+    final isFocus = mode == TimerPhase.focus;
+    final activeColor = isFocus
+        ? theme.colorScheme.primary
+        : theme.colorScheme.secondary;
 
     return Center(
       child: SizedBox(
@@ -48,7 +51,8 @@ class TimerCircle extends StatelessWidget {
                 value: progress,
                 strokeWidth: 12,
                 strokeCap: StrokeCap.round,
-                backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                backgroundColor: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.3),
                 valueColor: AlwaysStoppedAnimation<Color>(activeColor),
               ),
             ),
@@ -72,9 +76,14 @@ class TimerCircle extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.5,
+                    ),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(

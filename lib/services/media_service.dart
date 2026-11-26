@@ -19,15 +19,12 @@ class MediaService extends ChangeNotifier {
   })  : _ambiencePlayer = ambiencePlayer ?? AudioPlayer(),
         _alarmPlayer = alarmPlayer ?? AudioPlayer();
 
-  AudioPlayer get ambiencePlayer => _ambiencePlayer;
-  AudioPlayer get alarmPlayer => _alarmPlayer;
   VideoPlayerController? get videoController => _videoController;
 
   String? get currentAmbienceUrl => _currentAmbienceUrl;
   String? get currentVideoUrl => _currentVideoUrl;
   double get ambienceVolume => _ambienceVolume;
   bool get isVideoInitialized => _isVideoInitialized;
-  bool get isAmbiencePlaying => _ambiencePlayer.playing;
 
   Future<void> playAmbience(String url) async {
     try {
@@ -46,13 +43,6 @@ class MediaService extends ChangeNotifier {
         notifyListeners();
       }
     }
-  }
-
-  Future<void> pauseAmbience() async {
-    try {
-      await _ambiencePlayer.pause();
-      notifyListeners();
-    } catch (_) {}
   }
 
   Future<void> stopAmbience() async {
@@ -128,21 +118,6 @@ class MediaService extends ChangeNotifier {
     }
 
     notifyListeners();
-  }
-
-  Future<void> pauseVideo() async {
-    if (_videoController != null && _isVideoInitialized) {
-      await _videoController!.pause();
-      notifyListeners();
-    }
-  }
-
-  Future<void> playVideo() async {
-    if (_videoController != null && _isVideoInitialized) {
-      await _videoController!.setVolume(0.0);
-      await _videoController!.play();
-      notifyListeners();
-    }
   }
 
   @override
